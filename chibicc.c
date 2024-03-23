@@ -29,6 +29,29 @@ static void error(char *fmt, ...) {
   exit(1);
 }
 
+// Reports an error location and exit. 
+static void verror_at(char *p, char *loc, char *fmt, va_list ap) {
+  int pos = loc - p;
+  fprintf(stderr, "%s\n", p);
+  fprintf(stderr, "%*s", pos, "");
+  fprintf(stderr, "^ ");
+  vfprintf(stderr, fmt, ap);
+  fprintf(stderr, "\n");
+  exit(1);
+}
+
+static void error_at(char *src, char *loc, char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  verror_at(src, loc, fmt, ap);
+}
+
+static void error_tok(char *src, Token *tok, char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  verror_at(src, tok->loc, fmt, ap);
+}
+
 // Checks that the current token is TK_PUNCT and matches `s`.
 static Token *is_punct(Token* tok, char *s) {
   if (tok->kind != TK_PUNCT || memcmp(tok->loc, s, tok->len) != 0 || 
@@ -55,6 +78,7 @@ static Token *new_token(TokenKind kind, char *start, char *end) {
 
 // Tokenizes `p` and returns new tokens. 
 Token *tokenize(char *p) {
+  char *src = p;
   Token head = {};
   Token *cur = &head;
 
@@ -81,7 +105,7 @@ Token *tokenize(char *p) {
       continue;
     }
 
-    error("invalid token");
+    error_at(src, p, "invalid token");
   }
 
   cur = cur->next = new_token(TK_EOF, p, p);
@@ -94,7 +118,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  Token *tok = tokenize(argv[1]);
+  char *src = argv[1];
+  Token *tok = tokenize(src);
 
   printf(".intel_syntax noprefix\n");
   printf(".globl main\n");
@@ -102,7 +127,7 @@ int main(int argc, char **argv) {
 
   // The first token must be a number
   if (!is_number(tok))
-    error("expected a number");
+    error_tok(src, tok, "expected a number");
   printf("  mov rax, %d\n", tok->val);
   tok = tok->next;
 
@@ -111,7 +136,7 @@ int main(int argc, char **argv) {
     if (is_punct(tok, "+")) {
       tok = tok->next;
       if (!is_number(tok))
-        error("expected a number");
+        error_tok(src, tok, "expected a number");
       printf("  add rax, %d\n", tok->val);
       tok = tok->next;
       continue;
@@ -120,13 +145,13 @@ int main(int argc, char **argv) {
     if (is_punct(tok, "-")) {
       tok = tok->next;
       if (!is_number(tok))
-        error("expected a number");
+        error_tok(src, tok, "expected a number");
       printf("  sub rax, %d\n", tok->val);
       tok = tok->next;
       continue;
     }
 
-    error("unexpected token");
+    error_tok(src, tok, "unexpected token");
   }
 
   printf("  ret\n");
