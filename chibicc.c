@@ -132,6 +132,7 @@ typedef enum {
   ND_SUB, // -
   ND_MUL, // *
   ND_DIV, // / 
+  ND_NEG, // unary -
   ND_NUM, // integer
 } NodeKind;
 
@@ -153,6 +154,7 @@ static Node *new_node(NodeKind kind) {
 
 static Node *expr(Token **tok);
 static Node *mul(Token **tok);
+static Node *unary(Token **tok);
 static Node *primary(Token **tok);
 
 // expr = mul ("+" mul | "-" mul)*
@@ -182,16 +184,16 @@ static Node *expr(Token **tok) {
   }
 }
 
-// mul = primary ("*" primary | "/" primary)*
+// mul = unary ("*" unary | "/" unary)*
 static Node *mul(Token **tok) {
-  Node *node = primary(tok);
+  Node *node = unary(tok);
 
   for (;;) {
     if (is_token_punct(*tok, "*")) {
       *tok = (*tok)->next;
       Node *tmp = new_node(ND_MUL);
       tmp->lhs = node;
-      tmp->rhs = primary(tok);
+      tmp->rhs = unary(tok);
       node = tmp;
       continue;
     }
@@ -200,13 +202,31 @@ static Node *mul(Token **tok) {
       *tok = (*tok)->next;
       Node *tmp = new_node(ND_DIV);
       tmp->lhs = node;
-      tmp->rhs = primary(tok);
+      tmp->rhs = unary(tok);
       node = tmp;
       continue;
     }
 
     return node;
   }
+}
+
+// unary = ("+" | "-") unary | primary
+static Node *unary(Token **tok) {
+  if (is_token_punct(*tok, "+")) {
+    *tok = (*tok)->next;
+    Node *node = unary(tok);
+    return node;
+  }
+
+  if (is_token_punct(*tok, "-")) {
+    *tok = (*tok)->next;
+    Node *node = new_node(ND_NEG);
+    node->lhs = unary(tok);
+    return node;
+  }
+
+  return primary(tok);
 }
 
 // primary = "(" expr ")" | num
@@ -234,9 +254,14 @@ static Node *primary(Token **tok) {
 
 static void gen_expr(Node *node) {
   // Convert terminal symbols. 
-  if (node->kind == ND_NUM) {
-    printf("  mov rax, %d\n", node->val);
-    return;
+  switch (node->kind) {
+    case ND_NUM:
+      printf("  mov rax, %d\n", node->val);
+      return;
+    case ND_NEG:
+      gen_expr(node->lhs);
+      printf("  neg rax\n");
+      return;
   }
 
   gen_expr(node->rhs);
