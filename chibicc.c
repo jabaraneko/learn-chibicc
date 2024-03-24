@@ -84,6 +84,20 @@ static Token *is_token_eof(Token *tok) {
   return tok;
 }
 
+// Checks that `p` starts with `q`. 
+static bool startswith(char *p, char *q) {
+  return strncmp(p, q, strlen(q)) == 0;
+}
+
+// Reads a punctuator token from `p` and returns its length.
+static int read_punct(char *p) {
+  if (startswith(p, "==") || startswith(p, "!=") ||
+      startswith(p, "<=") || startswith(p, ">="))
+    return 2;
+
+  return ispunct(*p) ? 1 : 0;
+}
+
 // Tokenizes `src` and returns new tokens. 
 Token *tokenize() {
   char *p = src;
@@ -108,11 +122,12 @@ Token *tokenize() {
     }
 
     // Tokenize punctuators. 
-    if (ispunct(*p)) {
+    int punct_len = read_punct(p);
+    if (punct_len) {
       cur = cur->next = new_token(TK_PUNCT);
       cur->loc = p;
-      cur->len = 1;
-      p++;
+      cur->len = punct_len;
+      p += punct_len;
       continue;
     }
 
@@ -133,6 +148,10 @@ typedef enum {
   ND_MUL, // *
   ND_DIV, // / 
   ND_NEG, // unary -
+  ND_EQ,  // ==
+  ND_NE,  // !=
+  ND_LT,  // <
+  ND_LE,  // <=
   ND_NUM, // integer
 } NodeKind;
 
@@ -153,12 +172,92 @@ static Node *new_node(NodeKind kind) {
 }
 
 static Node *expr(Token **tok);
+static Node *equality(Token **tok);
+static Node *relational(Token **tok);
+static Node *add(Token **tok);
 static Node *mul(Token **tok);
 static Node *unary(Token **tok);
 static Node *primary(Token **tok);
 
-// expr = mul ("+" mul | "-" mul)*
+// expr = equality
 static Node *expr(Token **tok) {
+  return equality(tok);
+}
+
+// equality = relational ("==" relational | "!=" relational)*
+static Node *equality(Token **tok) {
+  Node *node = relational(tok);
+
+  for (;;) {
+    if (is_token_punct(*tok, "==")) {
+      *tok = (*tok)->next;
+      Node *tmp = new_node(ND_EQ);
+      tmp->lhs = node;
+      tmp->rhs = relational(tok);
+      node = tmp;
+      continue;
+    }
+
+    if (is_token_punct(*tok, "!=")) {
+      *tok = (*tok)->next;
+      Node *tmp = new_node(ND_NE);
+      tmp->lhs = node;
+      tmp->rhs = relational(tok);
+      node = tmp;
+      continue;
+    }
+
+    return node;
+  }
+}
+
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+static Node *relational(Token **tok) {
+  Node *node = add(tok);
+
+  for (;;) {
+    if (is_token_punct(*tok, "<")) {
+      *tok = (*tok)->next;
+      Node *tmp = new_node(ND_LT);
+      tmp->lhs = node;
+      tmp->rhs = add(tok);
+      node = tmp;
+      continue;
+    }
+
+    if (is_token_punct(*tok, "<=")) {
+      *tok = (*tok)->next;
+      Node *tmp = new_node(ND_LE);
+      tmp->lhs = node;
+      tmp->rhs = add(tok);
+      node = tmp;
+      continue;
+    }
+
+    if (is_token_punct(*tok, ">")) {
+      *tok = (*tok)->next;
+      Node *tmp = new_node(ND_LT);
+      tmp->lhs = add(tok);
+      tmp->rhs = node;
+      node = tmp;
+      continue;
+    }
+
+    if (is_token_punct(*tok, ">=")) {
+      *tok = (*tok)->next;
+      Node *tmp = new_node(ND_LE);
+      tmp->lhs = add(tok);
+      tmp->rhs = node;
+      node = tmp;
+      continue;
+    }
+
+    return node;
+  }
+}
+
+// add = mul ("+" mul | "-" mul)*
+static Node *add(Token **tok) {
   Node *node = mul(tok);
 
   for (;;) {
@@ -283,6 +382,26 @@ static void gen_expr(Node *node) {
     case ND_DIV:
       printf("  cqo\n");
       printf("  idiv rdi\n");
+      return;
+    case ND_EQ:
+      printf("  cmp rax, rdi\n");
+      printf("  sete al\n");
+      printf("  movzb rax, al\n");
+      return;
+    case ND_NE:
+      printf("  cmp rax, rdi\n");
+      printf("  setne al\n");
+      printf("  movzb rax, al\n");
+      return;
+    case ND_LT:
+      printf("  cmp rax, rdi\n");
+      printf("  setl al\n");
+      printf("  movzb rax, al\n");
+      return;
+    case ND_LE:
+      printf("  cmp rax, rdi\n");
+      printf("  setle al\n");
+      printf("  movzb rax, al\n");
       return;
   }
 
