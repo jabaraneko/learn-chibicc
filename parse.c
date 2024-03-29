@@ -1,5 +1,7 @@
 #include "chibicc.h"
 
+static Node *stmt(Token **tok);
+static Node *expr_stmt(Token **tok);
 static Node *expr(Token **tok);
 static Node *equality(Token **tok);
 static Node *relational(Token **tok);
@@ -14,6 +16,23 @@ static Node *new_node(NodeKind kind) {
   Node *node = calloc(1, sizeof(Node));
   node->kind = kind;
   return node;
+}
+
+// stmt = expr-stmt
+static Node *stmt(Token **tok) {
+  return expr_stmt(tok);
+}
+
+// expr-stmt = expr ";"
+static Node *expr_stmt(Token **tok) {
+  Node *node = new_node(ND_EXPR_STMT);
+  node->lhs = expr(tok);
+  if (is_token_punct(*tok, ";")) {
+    *tok = (*tok)->next;
+    return node;
+  }
+
+  error_at((*tok)->loc, "expected ;");
 }
 
 // expr = equality
@@ -187,8 +206,9 @@ static Node *primary(Token **tok) {
 }
 
 Node *parse(Token *tok) {
-  Node *node = expr(&tok);
-  if (tok->kind != TK_EOF)
-    error_at(tok->loc, "extra token");
-  return node;
+  Node head = {};
+  Node *cur = &head;
+  while (!is_token_eof(tok)) 
+    cur = cur->next = stmt(&tok);
+  return head.next;
 }

@@ -39,21 +39,23 @@ Token *tokenize(char *p);
 // --- parse.c ---
 
 typedef enum {
-  ND_ADD, // +
-  ND_SUB, // -
-  ND_MUL, // *
-  ND_DIV, // / 
-  ND_NEG, // unary -
-  ND_EQ,  // ==
-  ND_NE,  // !=
-  ND_LT,  // <
-  ND_LE,  // <=
-  ND_NUM, // integer
+  ND_ADD,       // +
+  ND_SUB,       // -
+  ND_MUL,       // *
+  ND_DIV,       // / 
+  ND_NEG,       // unary -
+  ND_EQ,        // ==
+  ND_NE,        // !=
+  ND_LT,        // <
+  ND_LE,        // <=
+  ND_EXPR_STMT, // expression statement
+  ND_NUM,       // integer
 } NodeKind;
 
 typedef struct Node Node;
 struct Node {
   NodeKind kind; // node kind
+  Node *next;    // next node
   Node *lhs;     // left-hand side
   Node *rhs;     // right-hand side
   int val;       // node value for ND_NUM
