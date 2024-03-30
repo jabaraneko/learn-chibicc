@@ -62,6 +62,12 @@ Token *is_token_number(Token *tok) {
   return tok;
 }
 
+Token *is_token_ident(Token* tok) {
+  if (tok->kind != TK_IDENT)
+    return NULL;
+  return tok;
+}
+
 Token *is_token_eof(Token *tok) {
   if (tok->kind != TK_EOF)
     return NULL;
@@ -87,6 +93,15 @@ Token *tokenize(char *p) {
       cur->val = strtol(p, &p, 10);
       cur->loc = q;
       cur->len = p - q;
+      continue;
+    }
+
+    // Tokenize identifiers. 
+    if ('a' <= *p && *p <= 'z') {
+      cur = cur->next = new_token(TK_IDENT);
+      cur->loc = p;
+      cur->len = 1;
+      p++;
       continue;
     }
 

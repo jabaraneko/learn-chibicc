@@ -3,6 +3,7 @@
 static Node *stmt(Token **tok);
 static Node *expr_stmt(Token **tok);
 static Node *expr(Token **tok);
+static Node *assign(Token **tok);
 static Node *equality(Token **tok);
 static Node *relational(Token **tok);
 static Node *add(Token **tok);
@@ -35,9 +36,23 @@ static Node *expr_stmt(Token **tok) {
   error_at((*tok)->loc, "expected ;");
 }
 
-// expr = equality
+// expr = assign
 static Node *expr(Token **tok) {
-  return equality(tok);
+  return assign(tok);
+}
+
+// assign = equality ("=" assign)?
+static Node *assign(Token **tok) {
+  Node *node = equality(tok);
+
+  if (is_token_punct(*tok, "=")) {
+    *tok = (*tok)->next;
+    Node *tmp = new_node(ND_ASSIGN);
+    tmp->lhs = node;
+    tmp->rhs = assign(tok);
+    node = tmp;
+  }
+  return node;
 }
 
 // equality = relational ("==" relational | "!=" relational)*
@@ -184,13 +199,20 @@ static Node *unary(Token **tok) {
   return primary(tok);
 }
 
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | ident | num
 static Node *primary(Token **tok) {
   if (is_token_punct(*tok, "(")) {
     *tok = (*tok)->next;
     Node *node = expr(tok);
     if (!is_token_punct(*tok, ")")) 
       error_at((*tok)->loc, "expected \")\"");
+    *tok = (*tok)->next;
+    return node;
+  }
+
+  if (is_token_ident(*tok)) {
+    Node *node = new_node(ND_VAR);
+    node->name = *(*tok)->loc;
     *tok = (*tok)->next;
     return node;
   }

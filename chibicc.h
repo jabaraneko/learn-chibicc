@@ -9,6 +9,7 @@
 // --- tokenize.c ---
 
 typedef enum {
+  TK_IDENT, // identifiers
   TK_PUNCT, // punctuators
   TK_NUM,   // numeric literals
   TK_EOF,   // end-of-file markers
@@ -30,6 +31,7 @@ void error_at(char *loc, char *fmt, ...);
 
 // Checks that the current token is a specified type of token. 
 Token *is_token_punct(Token* tok, char *s);
+Token *is_token_ident(Token* tok);
 Token *is_token_number(Token *tok);
 Token *is_token_eof(Token *tok);
 
@@ -48,7 +50,9 @@ typedef enum {
   ND_NE,        // !=
   ND_LT,        // <
   ND_LE,        // <=
+  ND_ASSIGN,    // =
   ND_EXPR_STMT, // expression statement
+  ND_VAR,       // variable
   ND_NUM,       // integer
 } NodeKind;
 
@@ -58,6 +62,7 @@ struct Node {
   Node *next;    // next node
   Node *lhs;     // left-hand side
   Node *rhs;     // right-hand side
+  char name;     // variable name for ND_VAR
   int val;       // node value for ND_NUM
 };
 
