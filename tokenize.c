@@ -25,6 +25,16 @@ static int read_punct(char *p) {
   return ispunct(*p) ? 1 : 0;
 }
 
+// Returns true if `c` is valid as the first character of an identifier.
+static bool is_ident1(char c) {
+  return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
+}
+
+// Returns true if `c` is valid as a non-first character of an identifier.
+static bool is_ident2(char c) {
+  return is_ident1(c) || ('0' <= c && c <= '9');
+}
+
 void error(char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -97,11 +107,14 @@ Token *tokenize(char *p) {
     }
 
     // Tokenize identifiers. 
-    if ('a' <= *p && *p <= 'z') {
+    if (is_ident1(*p)) {
+      char *start = p;
+      do {
+        p++;
+      } while (is_ident2(*p));
       cur = cur->next = new_token(TK_IDENT);
-      cur->loc = p;
-      cur->len = 1;
-      p++;
+      cur->loc = start;
+      cur->len = p-start;
       continue;
     }
 

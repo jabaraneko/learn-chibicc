@@ -1,13 +1,28 @@
 #include "chibicc.h"
 
+// Round up `n` to the nearest multiple of `align`. For instance,
+// align_to(5, 8) returns 8 and align_to(11, 8) returns 16.
+static int align_to(int n, int align) {
+  return (n + align - 1) / align * align;
+}
+
 // Computes the absolute address of a given node. 
 static void gen_addr(Node *node) {
   if (node->kind != ND_VAR)
     error("not a lvalue");
 
-  int offset = (node->name - 'a' + 1) * 8;
   printf("  mov rax, rbp\n");
-  printf("  sub rax, %d\n", offset);
+  printf("  sub rax, %d\n", node->var->offset);
+}
+
+// Assigns offsets to local variables. 
+static void assign_lvar_offsets(Function *prog) {
+  int offset = 0;
+  for (Obj *var = prog->locals; var; var = var->next) {
+    offset += 8;
+    var->offset = offset;
+  }
+  prog->stack_size = align_to(offset, 16);
 }
 
 static void gen_expr(Node *node) {
@@ -87,7 +102,9 @@ static void gen_stmt(Node *node) {
   error("invalid statement");
 }
 
-void codegen(Node *node) {
+void codegen(Function *prog) {
+  assign_lvar_offsets(prog);
+
   printf(".intel_syntax noprefix\n");
   printf(".globl main\n");
   printf("main:\n");
@@ -95,9 +112,9 @@ void codegen(Node *node) {
   // Prologue
   printf("  push rbp\n");
   printf("  mov rbp, rsp\n");
-  printf("  sub rsp, 208\n");
+  printf("  sub rsp, %d\n", prog->stack_size);
 
-  for (Node *n = node; n; n = n->next) {
+  for (Node *n = prog->body; n; n = n->next) {
     // Traverse the AST to emit assembly. 
     gen_stmt(n);
   }

@@ -1,5 +1,9 @@
 #include "chibicc.h"
 
+// All local variable instances created during parsing are
+// accumulated to this list.
+Obj *locals;
+
 static Node *stmt(Token **tok);
 static Node *expr_stmt(Token **tok);
 static Node *expr(Token **tok);
@@ -10,6 +14,14 @@ static Node *add(Token **tok);
 static Node *mul(Token **tok);
 static Node *unary(Token **tok);
 static Node *primary(Token **tok);
+
+// Finds a local variable by name. 
+static Obj *find_var(Token *tok) {
+  for (Obj *var = locals; var; var = var->next)
+    if (strlen(var->name) == tok->len && !strncmp(tok->loc, var->name, tok->len))
+      return var;
+  return NULL;
+}
 
 // Creates a new node. 
 // Members of the node must be set. 
@@ -211,8 +223,17 @@ static Node *primary(Token **tok) {
   }
 
   if (is_token_ident(*tok)) {
+    Obj *var = find_var(*tok);
+    if (!var) {
+      var = calloc(1, sizeof(Obj));
+      var->name = strndup((*tok)->loc, (*tok)->len);
+      var->next = locals;
+      locals = var;
+    }
+
     Node *node = new_node(ND_VAR);
-    node->name = *(*tok)->loc;
+    node->var = var;
+
     *tok = (*tok)->next;
     return node;
   }
@@ -227,10 +248,14 @@ static Node *primary(Token **tok) {
   error_at((*tok)->loc, "expected an expression");
 }
 
-Node *parse(Token *tok) {
+Function *parse(Token *tok) {
   Node head = {};
   Node *cur = &head;
   while (!is_token_eof(tok)) 
     cur = cur->next = stmt(&tok);
-  return head.next;
+
+  Function *prog = calloc(1, sizeof(Function));
+  prog->body = head.next;
+  prog->locals = locals;
+  return prog;
 }
